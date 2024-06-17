@@ -1,0 +1,114 @@
+use fitsrs::{
+    fits::Fits,
+    //hdu::{data::InMemData, extension::XtensionHDU, header::extension::Xtension},
+};
+use wcs::{LonLat, WCS};
+
+use std::fs::File;
+use std::io::{BufReader, Cursor, Read};
+
+//use plotters::prelude::*;
+
+//const OUT_FILE_NAME: &str = "matshow.png";
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    let mut f = File::open(
+        //"../..//Downloads/cutout-CDS_P_PanSTARRS_DR1_g.fits",
+        //"../../Downloads/VLA_lband_2017.fits",
+        "../../Downloads/image_full_ampphase_di_m.NS_shift.int.facetRestored.rescaled.fits",
+        //"../../Downloads/tail.fits",
+    )
+    .unwrap();
+    let mut buf = Vec::new();
+    f.read_to_end(&mut buf).unwrap();
+    let mut reader = Cursor::new(&buf[..]);
+    let Fits { hdu } = Fits::from_reader(&mut reader).unwrap();
+    let header = hdu.get_header();
+
+    //dbg!(header);
+    //dbg!(header.get(b"NAXIS1  "));
+    //dbg!(header.get(b"BPA     "));
+    let xtension = hdu.get_header().get_xtension();
+    //dbg!(xtension);
+    let naxis1 = *xtension.get_naxisn(1).unwrap() as usize;
+    let naxis2 = *xtension.get_naxisn(2).unwrap() as usize;
+    let cdelt1 = header
+        .get_parsed::<f64>(b"CDELT1  ")
+        .unwrap_or(Ok(0.0))
+        .unwrap();
+    let cdelt2 = header
+        .get_parsed::<f64>(b"CDELT2  ")
+        .unwrap_or(Ok(0.0))
+        .unwrap();
+    println!("Image size: ({}, {})", naxis1, naxis2);
+    println!("Pixel size: ({}, {})", cdelt1, cdelt2);
+
+    let wcs = WCS::new(&header).unwrap();
+    //let coord = LonLat::new(216.7489976f64.to_radians(), 34.1999570f64.to_radians());
+    let coord = LonLat::new(218.0f64.to_radians(), 34.5f64.to_radians());
+    let coord_pix = wcs.proj_lonlat(&coord).unwrap();
+    println!(
+        "Centring cutout on (x, y) = ({}, {})",
+        coord_pix.x(),
+        coord_pix.y()
+    );
+    let pix_x = coord_pix.x().floor() as u64;
+    let pix_y = coord_pix.y().floor() as u64;
+
+    let data = hdu.get_data();
+    //data[[pix_x-100..pix_x+100, pix_y-100..pix_y+100]];
+    /*
+    let root = BitMapBackend::new(OUT_FILE_NAME, (1024, 768)).into_drawing_area();
+
+    root.fill(&WHITE)?;
+
+    let mut chart = ChartBuilder::on(&root)
+        //.caption("Matshow Example", ("sans-serif", 80))
+        .margin(5)
+        .top_x_label_area_size(40)
+        .y_label_area_size(40)
+        .build_cartesian_2d(0..naxis1, naxis2..0)?;
+        //.build_cartesian_2d(0i32..15i32, 15i32..0i32)?;
+
+    chart
+        .configure_mesh()
+        //.x_labels(15)
+        //.y_labels(15)
+        .max_light_lines(4)
+        //.x_label_offset(35)
+        //.y_label_offset(25)
+        .disable_x_mesh()
+        .disable_y_mesh()
+        .label_style(("sans-serif", 20))
+        .draw()?;
+
+    let mut matrix = [[0; 15]; 15];
+
+    for i in 0..15 {
+        matrix[i][i] = i + 4;
+    }
+
+    chart.draw_series(
+        matrix
+            .iter()
+            .zip(0..)
+            .flat_map(|(l, y)| l.iter().zip(0..).map(move |(v, x)| (x, y, v)))
+            .map(|(x, y, v)| {
+                Rectangle::new(
+                    [(x, y), (x + 1, y + 1)],
+                    HSLColor(
+                        240.0 / 360.0 - 240.0 / 360.0 * (*v as f64 / 20.0),
+                        0.7,
+                        0.1 + 0.4 * *v as f64 / 20.0,
+                    )
+                    .filled(),
+                )
+            }),
+    )?;
+
+    // To avoid the IO failure being ignored silently, we manually call the present function
+    root.present().expect("Unable to write result to file, please make sure 'plotters-doc-data' dir exists under current dir");
+    println!("Result has been saved to {}", OUT_FILE_NAME);
+    */
+    Ok(())
+}
