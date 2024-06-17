@@ -57,7 +57,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cdelt1: f64 = hdu.read_key(&mut fptr, "CDELT1").unwrap();
     let imsize: usize = (args.size / cdelt1.abs()).ceil() as usize;
     println!("New image size: ({} x {})", imsize, imsize);
-    let mut _data: ArrayD<f32> = hdu.read_image(&mut fptr)?;
+    let mut _data: ArrayD<f64> = hdu.read_image(&mut fptr)?;
     // Assume RA and DEC axes are always the last two axes.
     while _data.shape().len() > 2 {
         _data = _data.remove_axis(Axis(0));
