@@ -13,7 +13,7 @@ use wcs::{LonLat, WCS};
 use std::fs::File;
 use std::io::BufReader;
 
-/// A Rust interface to summarise LOFAR H5parm calibration tables.
+/// Make a cutout of a FITS file.
 #[derive(Parser, Debug)]
 #[command(name = "FITS cutter")]
 #[command(author = "Frits Sweijen")]
