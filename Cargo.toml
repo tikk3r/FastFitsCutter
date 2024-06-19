@@ -8,9 +8,19 @@ edition = "2021"
 [dependencies]
 clap = { version = "4.5.4", features = ["derive"] }
 fitsio = { version = "0.21.2", features = ["array"] }
+fitsio-sys = "0.5.2"
 fitsrs = "0.2.9"
+#fitsrs = { git = "https://github.com/tikk3r/fitsrs", branch="only-header-reads"}
 ndarray = "0.15.6"
 wcs = "0.2.8"
 
 [profile.release]
 debug = false
+
+[[bin]]
+name = "ffc"
+path = "src/main.rs"
+
+[patch.crates-io]
+#fitsrs = { path = "fitsrs" }
+fitsrs = { git = "https://github.com/tikk3r/fitsrs", branch="only-header-reads"}
