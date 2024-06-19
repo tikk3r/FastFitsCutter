@@ -34,6 +34,9 @@ struct Args {
     /// Size of the cutout in degrees.
     #[arg(long)]
     size: f64,
+    /// Size of the cutout in degrees.
+    #[arg(long, default_value="output.fits")]
+    outfile: String,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -63,7 +66,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         data_type: ImageType::Float,
         dimensions: &[imsize, imsize],
     };
-    let mut fptr_new = FitsFile::create("output.fits")
+    let mut fptr_new = FitsFile::create(args.outfile)
         .with_custom_primary(&img_desc)
         .open()?;
 
