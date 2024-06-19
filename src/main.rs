@@ -2,6 +2,7 @@ use clap::Parser;
 use fitsio::images::{ImageDescription, ImageType};
 use fitsio::FitsFile;
 use fitsrs::hdu::header::Header;
+use fitsrs::fits::Fits;
 use wcs::{LonLat, WCS};
 
 use std::fs::File;
@@ -28,7 +29,7 @@ struct Args {
     /// Size of the cutout in degrees.
     #[arg(long)]
     size: f64,
-    /// Size of the cutout in degrees.
+    /// Name of the output file.
     #[arg(long, default_value = "output.fits")]
     outfile: String,
 }
