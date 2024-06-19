@@ -2,7 +2,6 @@ use clap::Parser;
 use fitsio::images::{ImageDescription, ImageType};
 use fitsio::FitsFile;
 use fitsrs::hdu::header::Header;
-use fitsrs::fits::Fits;
 use wcs::{LonLat, WCS};
 
 use std::fs::File;
@@ -24,7 +23,7 @@ struct Args {
     #[arg(long)]
     ra: f64,
     /// Declination to centre cutout on.
-    #[arg(long,allow_hyphen_values(true))]
+    #[arg(long, allow_hyphen_values(true))]
     dec: f64,
     /// Size of the cutout in degrees.
     #[arg(long)]
