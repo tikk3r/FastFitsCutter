@@ -23,7 +23,7 @@ struct Args {
     #[arg(long)]
     ra: f64,
     /// Declination to centre cutout on.
-    #[arg(long)]
+    #[arg(long,allow_hyphen_values(true))]
     dec: f64,
     /// Size of the cutout in degrees.
     #[arg(long)]
