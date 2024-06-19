@@ -37,8 +37,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
     let f = File::open(&args.fitsimage).unwrap();
     let mut reader = BufReader::new(f);
-    // Somehow this is needed. Skips the first card?
-    let _ = reader.seek_relative(80);
     let header = Header::parse_header(&mut reader)?;
     let wcs = WCS::new(&header).unwrap();
     let coord = LonLat::new(args.ra.to_radians(), args.dec.to_radians());
