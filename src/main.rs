@@ -1,13 +1,7 @@
 use clap::Parser;
 use fitsio::images::{ImageDescription, ImageType};
 use fitsio::FitsFile;
-use fitsio_sys;
-use fitsrs::fits::Fits;
-use fitsrs::hdu::header::extension::image::Image;
-use fitsrs::hdu::header::extension::Xtension;
 use fitsrs::hdu::header::Header;
-use fitsrs::hdu::HDU;
-use ndarray::{s, Array, ArrayD, Axis};
 use wcs::{LonLat, WCS};
 
 use std::fs::File;
