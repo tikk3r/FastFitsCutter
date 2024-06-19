@@ -29,7 +29,7 @@ struct Args {
     #[arg(long)]
     size: f64,
     /// Size of the cutout in degrees.
-    #[arg(long, default_value="output.fits")]
+    #[arg(long, default_value = "output.fits")]
     outfile: String,
 }
 
