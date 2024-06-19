@@ -1,12 +1,12 @@
 use clap::Parser;
 use fitsio::images::{ImageDescription, ImageType};
 use fitsio::FitsFile;
-use fitsrs::fits::Fits;
-use fitsrs::hdu::HDU;
-use fitsrs::hdu::header::extension::Xtension;
-use fitsrs::hdu::header::extension::image::Image;
-use fitsrs::hdu::header::Header;
 use fitsio_sys;
+use fitsrs::fits::Fits;
+use fitsrs::hdu::header::extension::image::Image;
+use fitsrs::hdu::header::extension::Xtension;
+use fitsrs::hdu::header::Header;
+use fitsrs::hdu::HDU;
 use ndarray::{s, Array, ArrayD, Axis};
 use wcs::{LonLat, WCS};
 
@@ -82,11 +82,15 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ctype2: std::string::String = hdu.read_key(&mut fptr, "CTYPE2").unwrap();
     hdu.write_key(&mut fptr_new, "CTYPE2", ctype2)?;
 
-    let ctype3: std::string::String = hdu.read_key(&mut fptr, "CTYPE3").unwrap();
-    hdu.write_key(&mut fptr_new, "CTYPE3", ctype3)?;
+    let ctype3: std::string::String = hdu.read_key(&mut fptr, "CTYPE3").unwrap_or("".to_string());
+    if ctype3.len() > 0 {
+        hdu.write_key(&mut fptr_new, "CTYPE3", ctype3.clone())?;
+    }
 
-    let ctype4: std::string::String = hdu.read_key(&mut fptr, "CTYPE4").unwrap();
-    hdu.write_key(&mut fptr_new, "CTYPE4", ctype4)?;
+    let ctype4: std::string::String = hdu.read_key(&mut fptr, "CTYPE4").unwrap_or("".to_string());
+    if ctype4.len() > 0 {
+        hdu.write_key(&mut fptr_new, "CTYPE4", ctype4.clone())?;
+    }
 
     let radesys: std::string::String = hdu.read_key(&mut fptr, "RADESYS").unwrap();
     hdu.write_key(&mut fptr_new, "RADESYS", radesys)?;
@@ -95,12 +99,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let latpole: f64 = hdu.read_key(&mut fptr, "LATPOLE").unwrap();
     hdu.write_key(&mut fptr_new, "LATPOLE", latpole)?;
 
-    // Only works for the "4D" LOFAR images at the moment.
-    let zcoord = 0..1;
-    let wcoord = 0..1;
-    let cutout_flat: Vec<f64> = hdu.read_region(&mut fptr, &[&rrange, &crange, &zcoord, &wcoord])?;
-    dbg!(cutout_flat.len());
-
+    let cutout_flat: Vec<f64>;
+    if ctype3.len() > 0 {
+        let zcoord = 0..1;
+        if ctype4.len() > 0 {
+            let wcoord = 0..1;
+            cutout_flat = hdu.read_region(&mut fptr, &[&rrange, &crange, &zcoord, &wcoord])?;
+        } else {
+            cutout_flat = hdu.read_region(&mut fptr, &[&rrange, &crange, &zcoord])?;
+        }
+    } else {
+        cutout_flat = hdu.read_region(&mut fptr, &[&rrange, &crange])?;
+    }
     hdu.write_region(&mut fptr_new, &[&(0..imsize), &(0..imsize)], &cutout_flat)?;
     Ok(())
 }
