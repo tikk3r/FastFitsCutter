@@ -17,7 +17,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Setup
-      run: sudo apt install libcfitsio
+      run: sudo apt install -y libcfitsio-devel
     - name: Build
       run: cargo build --verbose
     - name: Run tests
