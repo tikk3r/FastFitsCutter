@@ -38,6 +38,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let f = File::open(&args.fitsimage).unwrap();
     let mut reader = BufReader::new(f);
     let header = Header::parse_header(&mut reader)?;
+
+    let mut fptr = FitsFile::open(&args.fitsimage)?;
+    let hdu = fptr.primary_hdu().unwrap();
+
+    let cdelt1: f64 = hdu.read_key(&mut fptr, "CDELT1").unwrap_or_else(|_| 0.0);
+    let cdelt2: f64 = hdu.read_key(&mut fptr, "CDELT2").unwrap_or_else(|_| 0.0);
+
+    if cdelt1 == 0.0 || cdelt2 == 0.0 {
+        eprintln!("Error: One of CDELT1 or CDELT2 is zero. Please check the file.");
+        std::process::exit(-1);
+    }
+
     let wcs = WCS::new(&header).unwrap();
     let coord = LonLat::new(args.ra.to_radians(), args.dec.to_radians());
     let coord_pix = wcs.proj_lonlat(&coord).unwrap();
@@ -47,10 +59,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         coord_pix.y() as u64,
     );
 
-    let mut fptr = FitsFile::open(&args.fitsimage)?;
-    let hdu = fptr.primary_hdu().unwrap();
-    let cdelt1: f64 = hdu.read_key(&mut fptr, "CDELT1").unwrap();
     let imsize: usize = (args.size / cdelt1.abs()).ceil() as usize;
+
     println!("New image size: ({} x {})", imsize, imsize);
     let rrange = coord_pix.y() as usize + 1 - imsize / 2..coord_pix.y() as usize + imsize / 2 + 1;
     let crange = coord_pix.x() as usize + 1 - imsize / 2..coord_pix.x() as usize + imsize / 2 + 1;
@@ -69,12 +79,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     hdu.write_key(&mut fptr_new, "CRPIX2", imsize as u64 / 2)?;
 
     hdu.write_key(&mut fptr_new, "CDELT1", cdelt1)?;
-    let cdelt2: f64 = hdu.read_key(&mut fptr, "CDELT2").unwrap();
     hdu.write_key(&mut fptr_new, "CDELT2", cdelt2)?;
 
-    let ctype1: std::string::String = hdu.read_key(&mut fptr, "CTYPE1").unwrap();
+    let ctype1: std::string::String = hdu
+        .read_key(&mut fptr, "CTYPE1")
+        .unwrap_or_else(|_| "".to_string());
+    let ctype2: std::string::String = hdu
+        .read_key(&mut fptr, "CTYPE2")
+        .unwrap_or_else(|_| "".to_string());
+
+    if ctype1.len() == 0 || ctype2.len() == 0 {
+        eprintln!("Error: Failed to parse CTYPE1 or CTYPE2. Please check the header.");
+        std::process::exit(-1);
+    }
+
     hdu.write_key(&mut fptr_new, "CTYPE1", ctype1)?;
-    let ctype2: std::string::String = hdu.read_key(&mut fptr, "CTYPE2").unwrap();
     hdu.write_key(&mut fptr_new, "CTYPE2", ctype2)?;
 
     let ctype3: std::string::String = hdu.read_key(&mut fptr, "CTYPE3").unwrap_or("".to_string());
