@@ -20,10 +20,10 @@ struct Args {
     /// Input image to make a cutout out of.
     fitsimage: String,
     /// Right ascension to centre cutout on.
-    #[arg(long, default_value = "0.0")]
+    #[arg(long, default_value_t = 0.0)]
     ra: f64,
     /// Declination to centre cutout on.
-    #[arg(long, allow_hyphen_values(true), default_value = "0.0")]
+    #[arg(long, allow_hyphen_values(true), default_value_t = 0.0)]
     dec: f64,
     /// Size of the cutout in degrees.
     #[arg(long)]
@@ -152,7 +152,6 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 format!("{}.fits", name),
             )?;
         }
-        return Ok(());
     } else {
         make_cutout(
             &args.fitsimage,
