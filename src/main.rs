@@ -1,4 +1,6 @@
 use clap::Parser;
+use fitsio::hdu::FitsHdu;
+use fitsio::headers::{ReadsKey, WritesKey};
 use fitsio::images::{ImageDescription, ImageType};
 use fitsio::FitsFile;
 use fitsrs::hdu::header::Header;
@@ -35,6 +37,20 @@ struct Args {
     /// ascension and declination.
     #[arg(long, default_value = "")]
     sourcetable: String,
+}
+
+fn copy_key_if_exists<T: Default + PartialEq + ReadsKey + WritesKey>(
+    key: &str,
+    hdu: &FitsHdu,
+    from_img: &mut FitsFile,
+    to_img: &mut FitsFile,
+) -> Result<(), Box<dyn std::error::Error>> {
+    //let val: std::string::String = hdu.read_key(from_img, key).unwrap_or_else(|_| "".to_string());
+    let val: T = hdu.read_key(from_img, key).unwrap_or_else(|_| T::default());
+    if val != T::default() {
+        hdu.write_key(to_img, key, val)?;
+    }
+    Ok(())
 }
 
 fn make_cutout(
@@ -104,12 +120,10 @@ fn make_cutout(
     if ctype4.len() > 0 {
         hdu.write_key(&mut fptr_new, "CTYPE4", ctype4.clone())?;
     }
-    let radesys: std::string::String = hdu.read_key(&mut fptr, "RADESYS").unwrap();
-    hdu.write_key(&mut fptr_new, "RADESYS", radesys)?;
-    let lonpole: f64 = hdu.read_key(&mut fptr, "LONPOLE").unwrap();
-    hdu.write_key(&mut fptr_new, "LONPOLE", lonpole)?;
-    let latpole: f64 = hdu.read_key(&mut fptr, "LATPOLE").unwrap();
-    hdu.write_key(&mut fptr_new, "LATPOLE", latpole)?;
+
+    copy_key_if_exists::<String>("RADESYS", &hdu, &mut fptr, &mut fptr_new)?;
+    copy_key_if_exists::<f64>("LONPOLE", &hdu, &mut fptr, &mut fptr_new)?;
+    copy_key_if_exists::<f64>("LATPOLE", &hdu, &mut fptr, &mut fptr_new)?;
 
     let cutout_flat: Vec<f64>;
     if ctype3.len() > 0 {
