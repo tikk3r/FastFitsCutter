@@ -1,9 +1,8 @@
 use clap::Parser;
-use fitsio::hdu::FitsHdu;
-use fitsio::headers::{ReadsKey, WritesKey};
 use fitsio::images::{ImageDescription, ImageType};
 use fitsio::FitsFile;
 use fitsrs::hdu::header::Header;
+use rayon::prelude::*;
 use wcs::{LonLat, WCS};
 
 use std::fs::File;
@@ -37,20 +36,6 @@ struct Args {
     /// ascension and declination.
     #[arg(long, default_value = "")]
     sourcetable: String,
-}
-
-fn copy_key_if_exists<T: Default + PartialEq + ReadsKey + WritesKey>(
-    key: &str,
-    hdu: &FitsHdu,
-    from_img: &mut FitsFile,
-    to_img: &mut FitsFile,
-) -> Result<(), Box<dyn std::error::Error>> {
-    //let val: std::string::String = hdu.read_key(from_img, key).unwrap_or_else(|_| "".to_string());
-    let val: T = hdu.read_key(from_img, key).unwrap_or_else(|_| T::default());
-    if val != T::default() {
-        hdu.write_key(to_img, key, val)?;
-    }
-    Ok(())
 }
 
 fn make_cutout(
@@ -120,10 +105,12 @@ fn make_cutout(
     if ctype4.len() > 0 {
         hdu.write_key(&mut fptr_new, "CTYPE4", ctype4.clone())?;
     }
-
-    copy_key_if_exists::<String>("RADESYS", &hdu, &mut fptr, &mut fptr_new)?;
-    copy_key_if_exists::<f64>("LONPOLE", &hdu, &mut fptr, &mut fptr_new)?;
-    copy_key_if_exists::<f64>("LATPOLE", &hdu, &mut fptr, &mut fptr_new)?;
+    let radesys: std::string::String = hdu.read_key(&mut fptr, "RADESYS").unwrap();
+    hdu.write_key(&mut fptr_new, "RADESYS", radesys)?;
+    let lonpole: f64 = hdu.read_key(&mut fptr, "LONPOLE").unwrap();
+    hdu.write_key(&mut fptr_new, "LONPOLE", lonpole)?;
+    let latpole: f64 = hdu.read_key(&mut fptr, "LATPOLE").unwrap();
+    hdu.write_key(&mut fptr_new, "LATPOLE", latpole)?;
 
     let cutout_flat: Vec<f64>;
     if ctype3.len() > 0 {
@@ -151,21 +138,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if args.sourcetable.len() > 0 {
         let temp_reader = File::open(args.sourcetable)?;
         let mut csv_rdr = csv::Reader::from_reader(temp_reader);
-        for line in csv_rdr.records() {
-            let result = line?;
-            let name = &result[0];
-            let ra: f64 = result[1].parse()?;
-            let dec: f64 = result[2].parse()?;
+        let vals: Vec<Result<csv::StringRecord, csv::Error>> = csv_rdr.records().collect();
+        vals.par_iter().for_each(|result| {
+            let name = &result.as_ref().unwrap()[0];
+            let ra: f64 = result.as_ref().unwrap()[1].parse().unwrap();
+            let dec: f64 = result.as_ref().unwrap()[2].parse().unwrap();
             println!("Making cutout for {}", name);
-            make_cutout(
+            let _ = make_cutout(
                 &args.fitsimage,
                 &wcs,
                 &ra,
                 &dec,
                 &args.size,
                 format!("{}.fits", name),
-            )?;
-        }
+            );
+        });
     } else {
         make_cutout(
             &args.fitsimage,
