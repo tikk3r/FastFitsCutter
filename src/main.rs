@@ -4,6 +4,7 @@ use fitsio::headers::{ReadsKey, WritesKey};
 use fitsio::images::{ImageDescription, ImageType};
 use fitsio::FitsFile;
 use fitsrs::hdu::header::Header;
+use rayon::prelude::*;
 use wcs::{LonLat, WCS};
 
 use std::fs::File;
@@ -151,21 +152,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if args.sourcetable.len() > 0 {
         let temp_reader = File::open(args.sourcetable)?;
         let mut csv_rdr = csv::Reader::from_reader(temp_reader);
-        for line in csv_rdr.records() {
-            let result = line?;
-            let name = &result[0];
-            let ra: f64 = result[1].parse()?;
-            let dec: f64 = result[2].parse()?;
+        let vals: Vec<Result<csv::StringRecord, csv::Error>> = csv_rdr.records().collect();
+        vals.par_iter().for_each(|result| {
+            let name = &result.as_ref().unwrap()[0];
+            let ra: f64 = result.as_ref().unwrap()[1].parse().unwrap();
+            let dec: f64 = result.as_ref().unwrap()[2].parse().unwrap();
             println!("Making cutout for {}", name);
-            make_cutout(
+            let _ = make_cutout(
                 &args.fitsimage,
                 &wcs,
                 &ra,
                 &dec,
                 &args.size,
                 format!("{}.fits", name),
-            )?;
-        }
+            );
+        });
     } else {
         make_cutout(
             &args.fitsimage,
