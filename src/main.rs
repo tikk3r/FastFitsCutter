@@ -46,7 +46,6 @@ fn copy_key_if_exists<T: Default + PartialEq + ReadsKey + WritesKey>(
     from_img: &mut FitsFile,
     to_img: &mut FitsFile,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    //let val: std::string::String = hdu.read_key(from_img, key).unwrap_or_else(|_| "".to_string());
     let val: T = hdu.read_key(from_img, key).unwrap_or_else(|_| T::default());
     if val != T::default() {
         hdu.write_key(to_img, key, val)?;
