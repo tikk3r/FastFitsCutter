@@ -64,8 +64,8 @@ fn make_cutout(
     let mut fptr = FitsFile::open(fitsimage)?;
     let hdu = fptr.primary_hdu().unwrap();
 
-    let naxis1: usize = hdu.read_key(&mut fptr, "NAXIS1").unwrap_or_else(|_| 0) as usize;
-    let naxis2: usize = hdu.read_key(&mut fptr, "NAXIS2").unwrap_or_else(|_| 0) as usize;
+    let naxis1: i64 = hdu.read_key(&mut fptr, "NAXIS1").unwrap_or_else(|_| 0);
+    let naxis2: i64 = hdu.read_key(&mut fptr, "NAXIS2").unwrap_or_else(|_| 0);
 
     let cdelt1: f64 = hdu.read_key(&mut fptr, "CDELT1").unwrap_or_else(|_| 0.0);
     let cdelt2: f64 = hdu.read_key(&mut fptr, "CDELT2").unwrap_or_else(|_| 0.0);
@@ -76,44 +76,47 @@ fn make_cutout(
     }
     let coord = LonLat::new(ra.to_radians(), dec.to_radians());
     let coord_pix = wcs.proj_lonlat(&coord).unwrap();
-    println!(
-        "Centring cutout on (x, y) = ({}, {})",
-        coord_pix.x() as u64,
-        coord_pix.y() as u64,
-    );
-
-    let cdelt1: f64 = hdu.read_key(&mut fptr, "CDELT1").unwrap_or_else(|_| 0.0);
-
-    let mut imsize: usize = (size / cdelt1.abs()).ceil() as usize;
-
-    println!("New image size: ({} x {})", imsize, imsize);
-    let mut lim_low_row = coord_pix.y() as usize + 1 - imsize / 2;
-    let mut lim_up_row = coord_pix.y() as usize + imsize / 2 + 1;
-    let mut lim_low_col = coord_pix.x() as usize + 1 - imsize / 2;
-    let mut lim_up_col = coord_pix.x() as usize + imsize / 2 + 1;
-
-    while (lim_up_row > naxis2 || lim_up_col > naxis1) && imsize > 4 {
-        println!("Cutout falls (partially) outside the image, halving image!");
-        imsize = imsize / 2;
-
-        lim_low_row = coord_pix.y() as usize + 1 - imsize / 2;
-        lim_up_row = coord_pix.y() as usize + imsize / 2 + 1;
-        lim_low_col = coord_pix.x() as usize + 1 - imsize / 2;
-        lim_up_col = coord_pix.x() as usize + imsize / 2 + 1;
-
-    }
-
-    if lim_up_row > naxis2 || lim_up_col > naxis1 {
-        println!("Cutout falls (partially) outside the image, skipping!");
+    let x_pix = coord_pix.x() as i64;
+    let y_pix = coord_pix.y() as i64;
+    if x_pix < 0 || x_pix >= naxis1 || y_pix < 0 || y_pix >= naxis2 {
+        //println!("Source position completely outside image, skipping!");
         return Ok(());
+    } else {
+        //println!("Centring cutout on (x, y) = ({}, {})", x_pix, y_pix,);
     }
 
-    let rrange = lim_low_row..lim_up_row;
-    let crange = lim_low_col..lim_up_col;
+    let mut imsize: i64 = (size / cdelt1.abs()).ceil() as i64;
+
+    let mut lim_low_row = coord_pix.x().floor() as i64 - imsize / 2;
+    let mut lim_up_row = coord_pix.x().floor() as i64 + imsize / 2 + 1;
+    let mut lim_low_col = coord_pix.y().floor() as i64 - imsize / 2;
+    let mut lim_up_col = coord_pix.y().floor() as i64 + imsize / 2 + 1;
+
+    while (lim_up_row >= naxis2 || lim_up_col >= naxis1 || lim_low_row < 0 || lim_low_col < 0)
+        && imsize > 2
+    {
+        //println!(
+        //    "New image size: ({} x {})\nBounding box: {}, {}, {}, {}",
+        //    imsize, imsize, lim_low_row, lim_up_row, lim_low_col, lim_up_col
+        //);
+        imsize = imsize / 2;
+        //println!(
+        //    "Cutout falls (partially) outside the image, halving image to {}!",
+        //    imsize
+        //);
+
+        lim_low_row = coord_pix.x().floor() as i64 - imsize / 2;
+        lim_up_row = coord_pix.x().floor() as i64 + imsize / 2 + 1;
+        lim_low_col = coord_pix.y().floor() as i64 - imsize / 2;
+        lim_up_col = coord_pix.y().floor() as i64 + imsize / 2 + 1;
+    }
+
+    let rrange = lim_low_row as usize..lim_up_row as usize;
+    let crange = lim_low_col as usize..lim_up_col as usize;
 
     let img_desc = ImageDescription {
         data_type: ImageType::Float,
-        dimensions: &[imsize, imsize],
+        dimensions: &[imsize.try_into().unwrap(), imsize.try_into().unwrap()],
     };
     let mut fptr_new = FitsFile::create(outfile)
         .with_custom_primary(&img_desc)
@@ -125,7 +128,7 @@ fn make_cutout(
     hdu.write_key(&mut fptr_new, "CRPIX2", imsize as u64 / 2)?;
 
     hdu.write_key(&mut fptr_new, "CDELT1", cdelt1)?;
-    hdu.write_key(&mut fptr_new, "CDELT2", cdelt1)?;
+    hdu.write_key(&mut fptr_new, "CDELT2", cdelt2)?;
 
     let ctype1: std::string::String = hdu
         .read_key(&mut fptr, "CTYPE1")
@@ -162,7 +165,17 @@ fn make_cutout(
     } else {
         cutout_flat = hdu.read_region(&mut fptr, &[&rrange, &crange])?;
     }
-    hdu.write_region(&mut fptr_new, &[&(0..imsize), &(0..imsize)], &cutout_flat)?;
+    assert!(cutout_flat.len() == (imsize as usize).pow(2));
+    //if !(cutout_flat.len() == (imsize as usize).pow(2)) {
+    //    dbg!(cutout_flat.len());
+    //    dbg!(imsize);
+    //    println!("Centring cutout on (x, y) = ({}, {})", x_pix, y_pix,);
+    //}
+    hdu.write_region(
+        &mut fptr_new,
+        &[&(0..imsize as usize), &(0..imsize as usize)],
+        &cutout_flat,
+    )?;
     Ok(())
 }
 
@@ -177,11 +190,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let temp_reader = File::open(args.sourcetable)?;
         let mut csv_rdr = csv::Reader::from_reader(temp_reader);
         let vals: Vec<Result<csv::StringRecord, csv::Error>> = csv_rdr.records().collect();
-        vals.par_iter().for_each(|result| {
+        println!("Found {} sources in catalogue", vals.len());
+        vals.iter().for_each(|result| {
+        //vals.par_iter().for_each(|result| {
             let name = &result.as_ref().unwrap()[0];
             let ra: f64 = result.as_ref().unwrap()[1].parse().unwrap();
             let dec: f64 = result.as_ref().unwrap()[2].parse().unwrap();
-            println!("Making cutout for {}", name);
+            //println!("Making cutout for {}", name);
             let _ = make_cutout(
                 &args.fitsimage,
                 &wcs,
