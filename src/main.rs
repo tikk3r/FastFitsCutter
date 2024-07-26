@@ -191,8 +191,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut csv_rdr = csv::Reader::from_reader(temp_reader);
         let vals: Vec<Result<csv::StringRecord, csv::Error>> = csv_rdr.records().collect();
         println!("Found {} sources in catalogue", vals.len());
-        vals.iter().for_each(|result| {
-        //vals.par_iter().for_each(|result| {
+        vals.par_iter().for_each(|result| {
             let name = &result.as_ref().unwrap()[0];
             let ra: f64 = result.as_ref().unwrap()[1].parse().unwrap();
             let dec: f64 = result.as_ref().unwrap()[2].parse().unwrap();
