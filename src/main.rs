@@ -64,6 +64,9 @@ fn make_cutout(
     let mut fptr = FitsFile::open(fitsimage)?;
     let hdu = fptr.primary_hdu().unwrap();
 
+    let naxis1: usize = hdu.read_key(&mut fptr, "NAXIS1").unwrap_or_else(|_| 0) as usize;
+    let naxis2: usize = hdu.read_key(&mut fptr, "NAXIS2").unwrap_or_else(|_| 0) as usize;
+
     let cdelt1: f64 = hdu.read_key(&mut fptr, "CDELT1").unwrap_or_else(|_| 0.0);
     let cdelt2: f64 = hdu.read_key(&mut fptr, "CDELT2").unwrap_or_else(|_| 0.0);
 
@@ -84,8 +87,19 @@ fn make_cutout(
     let imsize: usize = (size / cdelt1.abs()).ceil() as usize;
 
     println!("New image size: ({} x {})", imsize, imsize);
-    let rrange = coord_pix.y() as usize + 1 - imsize / 2..coord_pix.y() as usize + imsize / 2 + 1;
-    let crange = coord_pix.x() as usize + 1 - imsize / 2..coord_pix.x() as usize + imsize / 2 + 1;
+    let lim_low_row = coord_pix.y() as usize + 1 - imsize / 2;
+    let lim_up_row = coord_pix.y() as usize + imsize / 2 + 1;
+    let lim_low_col = coord_pix.x() as usize + 1 - imsize / 2;
+    let lim_up_col = coord_pix.x() as usize + imsize / 2 + 1;
+
+    if lim_up_row > naxis2 || lim_up_col > naxis1 {
+        println!("Cutout falls (partially) outside the image, skipping!");
+        return Ok(());
+    }
+
+    let rrange = lim_low_row..lim_up_row;
+    let crange = lim_low_col..lim_up_col;
+
     let img_desc = ImageDescription {
         data_type: ImageType::Float,
         dimensions: &[imsize, imsize],
