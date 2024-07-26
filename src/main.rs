@@ -92,7 +92,7 @@ fn make_cutout(
     let mut lim_low_col = coord_pix.x() as usize + 1 - imsize / 2;
     let mut lim_up_col = coord_pix.x() as usize + imsize / 2 + 1;
 
-    if lim_up_row > naxis2 || lim_up_col > naxis1 {
+    while (lim_up_row > naxis2 || lim_up_col > naxis1) && imsize > 4 {
         println!("Cutout falls (partially) outside the image, halving image!");
         imsize = imsize / 2;
 
@@ -101,10 +101,11 @@ fn make_cutout(
         lim_low_col = coord_pix.x() as usize + 1 - imsize / 2;
         lim_up_col = coord_pix.x() as usize + imsize / 2 + 1;
 
-        if lim_up_row > naxis2 || lim_up_col > naxis1 {
-            println!("Cutout falls (partially) outside the image, skipping!");
-            return Ok(());
-        }
+    }
+
+    if lim_up_row > naxis2 || lim_up_col > naxis1 {
+        println!("Cutout falls (partially) outside the image, skipping!");
+        return Ok(());
     }
 
     let rrange = lim_low_row..lim_up_row;
