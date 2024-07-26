@@ -5,7 +5,7 @@ use fitsio::images::{ImageDescription, ImageType};
 use fitsio::FitsFile;
 use fitsrs::hdu::header::Header;
 use rayon::prelude::*;
-use wcs::{LonLat, WCS};
+use wcs::{ImgXY, LonLat, WCS};
 
 use std::fs::File;
 use std::io::BufReader;
@@ -76,8 +76,12 @@ fn make_cutout(
     }
     let coord = LonLat::new(ra.to_radians(), dec.to_radians());
     let coord_pix = wcs.proj_lonlat(&coord).unwrap();
-    let x_pix = coord_pix.x() as i64;
-    let y_pix = coord_pix.y() as i64;
+    let x_pix = coord_pix.x().floor() as i64;
+    let y_pix = coord_pix.y().floor() as i64;
+
+    let coord_ref_pix = ImgXY::new(x_pix as f64, y_pix as f64);
+    let coord_ref = wcs.unproj_lonlat(&coord_ref_pix).unwrap();
+
     if x_pix < 0 || x_pix >= naxis1 || y_pix < 0 || y_pix >= naxis2 {
         //println!("Source position completely outside image, skipping!");
         return Ok(());
@@ -87,10 +91,10 @@ fn make_cutout(
 
     let mut imsize: i64 = (size / cdelt1.abs()).ceil() as i64;
 
-    let mut lim_low_row = coord_pix.x().floor() as i64 - imsize / 2;
-    let mut lim_up_row = coord_pix.x().floor() as i64 + imsize / 2 + 1;
-    let mut lim_low_col = coord_pix.y().floor() as i64 - imsize / 2;
-    let mut lim_up_col = coord_pix.y().floor() as i64 + imsize / 2 + 1;
+    let mut lim_low_row = x_pix - imsize / 2;
+    let mut lim_up_row = x_pix + imsize / 2 + 1;
+    let mut lim_low_col = y_pix - imsize / 2;
+    let mut lim_up_col = y_pix + imsize / 2 + 1;
 
     while (lim_up_row >= naxis2 || lim_up_col >= naxis1 || lim_low_row < 0 || lim_low_col < 0)
         && imsize > 2
@@ -105,10 +109,10 @@ fn make_cutout(
         //    imsize
         //);
 
-        lim_low_row = coord_pix.x().floor() as i64 - imsize / 2;
-        lim_up_row = coord_pix.x().floor() as i64 + imsize / 2 + 1;
-        lim_low_col = coord_pix.y().floor() as i64 - imsize / 2;
-        lim_up_col = coord_pix.y().floor() as i64 + imsize / 2 + 1;
+        lim_low_row = x_pix - imsize / 2;
+        lim_up_row = x_pix + imsize / 2 + 1;
+        lim_low_col = y_pix - imsize / 2;
+        lim_up_col = y_pix + imsize / 2 + 1;
     }
 
     let rrange = lim_low_row as usize..lim_up_row as usize;
@@ -121,11 +125,11 @@ fn make_cutout(
     let mut fptr_new = FitsFile::create(outfile)
         .with_custom_primary(&img_desc)
         .open()?;
-    hdu.write_key(&mut fptr_new, "CRVAL1", *ra)?;
-    hdu.write_key(&mut fptr_new, "CRVAL2", *dec)?;
+    hdu.write_key(&mut fptr_new, "CRVAL1", coord_ref.lon().to_degrees())?;
+    hdu.write_key(&mut fptr_new, "CRVAL2", coord_ref.lat().to_degrees())?;
 
-    hdu.write_key(&mut fptr_new, "CRPIX1", imsize as u64 / 2)?;
-    hdu.write_key(&mut fptr_new, "CRPIX2", imsize as u64 / 2)?;
+    hdu.write_key(&mut fptr_new, "CRPIX1", (imsize as f64/2.0).ceil() as u64)?;
+    hdu.write_key(&mut fptr_new, "CRPIX2", (imsize as f64/2.0).ceil() as u64)?;
 
     hdu.write_key(&mut fptr_new, "CDELT1", cdelt1)?;
     hdu.write_key(&mut fptr_new, "CDELT2", cdelt2)?;
