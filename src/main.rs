@@ -79,13 +79,12 @@ fn make_cutout(
 
     let coord_ref_pix = ImgXY::new(coord_pix.x(), coord_pix.y());
     let coord_ref = wcs.unproj_lonlat(&coord_ref_pix).unwrap();
-    println!("{}, {} -- {}, {} -- {}, {}", coord.lon(), coord.lat(), coord_pix.x(), coord_pix.y(), coord_ref.lon(), coord_ref.lat());
 
     let x_pix = coord_pix.x().round() as i64;
     let y_pix = coord_pix.y().round() as i64;
 
     if x_pix < 0 || x_pix >= naxis1 || y_pix < 0 || y_pix >= naxis2 {
-        //println!("Source position completely outside image, skipping!");
+        println!("Source {} completely outside image, skipping!", outfile);
         return Ok(());
     } else {
         //println!("Centring cutout on (x, y) = ({}, {})", x_pix, y_pix,);
