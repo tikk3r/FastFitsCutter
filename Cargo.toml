@@ -10,7 +10,7 @@ clap = { version = "<4.5", features = ["derive"] }
 csv = "1.3.0"
 fitsio = { version = "0.21.2", features = ["array"] }
 fitsio-sys = "0.5.2"
-fitsrs = "0.2.9"
+fitsrs = "0.2.11"
 #fitsrs = { git = "https://github.com/tikk3r/fitsrs", branch="only-header-reads"}
 ndarray = "0.15.6"
 rayon = "1.10.0"
