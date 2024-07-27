@@ -76,11 +76,13 @@ fn make_cutout(
     }
     let coord = LonLat::new(ra.to_radians(), dec.to_radians());
     let coord_pix = wcs.proj_lonlat(&coord).unwrap();
-    let x_pix = coord_pix.x().floor() as i64;
-    let y_pix = coord_pix.y().floor() as i64;
 
-    let coord_ref_pix = ImgXY::new(x_pix as f64, y_pix as f64);
+    let coord_ref_pix = ImgXY::new(coord_pix.x(), coord_pix.y());
     let coord_ref = wcs.unproj_lonlat(&coord_ref_pix).unwrap();
+    println!("{}, {} -- {}, {} -- {}, {}", coord.lon(), coord.lat(), coord_pix.x(), coord_pix.y(), coord_ref.lon(), coord_ref.lat());
+
+    let x_pix = (coord_pix.x() + 0.5).round() as i64;
+    let y_pix = coord_pix.y().round() as i64;
 
     if x_pix < 0 || x_pix >= naxis1 || y_pix < 0 || y_pix >= naxis2 {
         //println!("Source position completely outside image, skipping!");
@@ -125,7 +127,7 @@ fn make_cutout(
     let mut fptr_new = FitsFile::create(outfile)
         .with_custom_primary(&img_desc)
         .open()?;
-    hdu.write_key(&mut fptr_new, "CRVAL1", coord_ref.lon().to_degrees())?;
+    hdu.write_key(&mut fptr_new, "CRVAL1", coord_ref.lon().to_degrees() + cdelt1.abs() / 2.0)?;
     hdu.write_key(&mut fptr_new, "CRVAL2", coord_ref.lat().to_degrees())?;
 
     hdu.write_key(&mut fptr_new, "CRPIX1", (imsize as f64/2.0).ceil() as u64)?;
