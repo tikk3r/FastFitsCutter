@@ -86,8 +86,6 @@ fn make_cutout(
     if x_pix < 0 || x_pix >= naxis1 || y_pix < 0 || y_pix >= naxis2 {
         println!("Source {} completely outside image, skipping!", outfile);
         return Ok(());
-    } else {
-        //println!("Centring cutout on (x, y) = ({}, {})", x_pix, y_pix,);
     }
 
     let mut imsize: i64 = (size / cdelt1.abs()).ceil() as i64;
@@ -100,15 +98,7 @@ fn make_cutout(
     while (lim_up_row >= naxis2 || lim_up_col >= naxis1 || lim_low_row < 0 || lim_low_col < 0)
         && imsize > 2
     {
-        //println!(
-        //    "New image size: ({} x {})\nBounding box: {}, {}, {}, {}",
-        //    imsize, imsize, lim_low_row, lim_up_row, lim_low_col, lim_up_col
-        //);
-        imsize = imsize / 2;
-        //println!(
-        //    "Cutout falls (partially) outside the image, halving image to {}!",
-        //    imsize
-        //);
+        imsize = (imsize as f64 / 2.0).floor() as i64;
 
         lim_low_row = x_pix - imsize / 2;
         lim_up_row = x_pix + imsize / 2 + 1;
@@ -116,6 +106,10 @@ fn make_cutout(
         lim_up_col = y_pix + imsize / 2 + 1;
     }
 
+    // Not sure why, but sometimes it is off by one.
+    if ((lim_up_row - lim_low_row) == imsize + 1) && ((lim_up_col - lim_low_col) == imsize + 1) {
+        imsize = imsize + 1;
+    }
     let rrange = lim_low_row as usize..lim_up_row as usize;
     let crange = lim_low_col as usize..lim_up_col as usize;
 
@@ -123,7 +117,7 @@ fn make_cutout(
         data_type: ImageType::Float,
         dimensions: &[imsize.try_into().unwrap(), imsize.try_into().unwrap()],
     };
-    let mut fptr_new = FitsFile::create(outfile)
+    let mut fptr_new = FitsFile::create(&outfile)
         .with_custom_primary(&img_desc)
         .open()?;
     hdu.write_key(&mut fptr_new, "CRVAL1", coord_ref.lon().to_degrees() + cdelt1.abs() / 2.0)?;
@@ -171,11 +165,6 @@ fn make_cutout(
         cutout_flat = hdu.read_region(&mut fptr, &[&rrange, &crange])?;
     }
     assert!(cutout_flat.len() == (imsize as usize).pow(2));
-    //if !(cutout_flat.len() == (imsize as usize).pow(2)) {
-    //    dbg!(cutout_flat.len());
-    //    dbg!(imsize);
-    //    println!("Centring cutout on (x, y) = ({}, {})", x_pix, y_pix,);
-    //}
     hdu.write_region(
         &mut fptr_new,
         &[&(0..imsize as usize), &(0..imsize as usize)],
