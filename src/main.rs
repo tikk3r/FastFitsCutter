@@ -5,7 +5,7 @@ use fitsio::images::{ImageDescription, ImageType};
 use fitsio::FitsFile;
 use fitsrs::hdu::header::Header;
 use rayon::prelude::*;
-use wcs::{LonLat, WCS};
+use wcs::{ImgXY, LonLat, WCS};
 
 use std::fs::File;
 use std::io::BufReader;
@@ -64,6 +64,9 @@ fn make_cutout(
     let mut fptr = FitsFile::open(fitsimage)?;
     let hdu = fptr.primary_hdu().unwrap();
 
+    let naxis1: i64 = hdu.read_key(&mut fptr, "NAXIS1").unwrap_or_else(|_| 0);
+    let naxis2: i64 = hdu.read_key(&mut fptr, "NAXIS2").unwrap_or_else(|_| 0);
+
     let cdelt1: f64 = hdu.read_key(&mut fptr, "CDELT1").unwrap_or_else(|_| 0.0);
     let cdelt2: f64 = hdu.read_key(&mut fptr, "CDELT2").unwrap_or_else(|_| 0.0);
 
@@ -73,34 +76,58 @@ fn make_cutout(
     }
     let coord = LonLat::new(ra.to_radians(), dec.to_radians());
     let coord_pix = wcs.proj_lonlat(&coord).unwrap();
-    println!(
-        "Centring cutout on (x, y) = ({}, {})",
-        coord_pix.x() as u64,
-        coord_pix.y() as u64,
-    );
 
-    let cdelt1: f64 = hdu.read_key(&mut fptr, "CDELT1").unwrap_or_else(|_| 0.0);
+    let coord_ref_pix = ImgXY::new(coord_pix.x(), coord_pix.y());
+    let coord_ref = wcs.unproj_lonlat(&coord_ref_pix).unwrap();
 
-    let imsize: usize = (size / cdelt1.abs()).ceil() as usize;
+    let x_pix = coord_pix.x().round() as i64;
+    let y_pix = coord_pix.y().round() as i64;
 
-    println!("New image size: ({} x {})", imsize, imsize);
-    let rrange = coord_pix.y() as usize + 1 - imsize / 2..coord_pix.y() as usize + imsize / 2 + 1;
-    let crange = coord_pix.x() as usize + 1 - imsize / 2..coord_pix.x() as usize + imsize / 2 + 1;
+    if x_pix < 0 || x_pix >= naxis1 || y_pix < 0 || y_pix >= naxis2 {
+        println!("Source {} completely outside image, skipping!", outfile);
+        return Ok(());
+    }
+
+    let mut imsize: i64 = (size / cdelt1.abs()).ceil() as i64;
+
+    let mut lim_low_row = x_pix - imsize / 2;
+    let mut lim_up_row = x_pix + imsize / 2 + 1;
+    let mut lim_low_col = y_pix - imsize / 2;
+    let mut lim_up_col = y_pix + imsize / 2 + 1;
+
+    while (lim_up_row >= naxis2 || lim_up_col >= naxis1 || lim_low_row < 0 || lim_low_col < 0)
+        && imsize > 2
+    {
+        imsize = (imsize as f64 / 2.0).floor() as i64;
+
+        lim_low_row = x_pix - imsize / 2;
+        lim_up_row = x_pix + imsize / 2 + 1;
+        lim_low_col = y_pix - imsize / 2;
+        lim_up_col = y_pix + imsize / 2 + 1;
+    }
+
+    // Not sure why, but sometimes it is off by one.
+    if ((lim_up_row - lim_low_row) == imsize + 1) && ((lim_up_col - lim_low_col) == imsize + 1) {
+        imsize = imsize + 1;
+    }
+    let rrange = lim_low_row as usize..lim_up_row as usize;
+    let crange = lim_low_col as usize..lim_up_col as usize;
+
     let img_desc = ImageDescription {
         data_type: ImageType::Float,
-        dimensions: &[imsize, imsize],
+        dimensions: &[imsize.try_into().unwrap(), imsize.try_into().unwrap()],
     };
-    let mut fptr_new = FitsFile::create(outfile)
+    let mut fptr_new = FitsFile::create(&outfile)
         .with_custom_primary(&img_desc)
         .open()?;
-    hdu.write_key(&mut fptr_new, "CRVAL1", *ra)?;
-    hdu.write_key(&mut fptr_new, "CRVAL2", *dec)?;
+    hdu.write_key(&mut fptr_new, "CRVAL1", coord_ref.lon().to_degrees() + cdelt1.abs() / 2.0)?;
+    hdu.write_key(&mut fptr_new, "CRVAL2", coord_ref.lat().to_degrees())?;
 
-    hdu.write_key(&mut fptr_new, "CRPIX1", imsize as u64 / 2)?;
-    hdu.write_key(&mut fptr_new, "CRPIX2", imsize as u64 / 2)?;
+    hdu.write_key(&mut fptr_new, "CRPIX1", (imsize as f64/2.0).ceil() as u64)?;
+    hdu.write_key(&mut fptr_new, "CRPIX2", (imsize as f64/2.0).ceil() as u64)?;
 
     hdu.write_key(&mut fptr_new, "CDELT1", cdelt1)?;
-    hdu.write_key(&mut fptr_new, "CDELT2", cdelt1)?;
+    hdu.write_key(&mut fptr_new, "CDELT2", cdelt2)?;
 
     let ctype1: std::string::String = hdu
         .read_key(&mut fptr, "CTYPE1")
@@ -137,7 +164,12 @@ fn make_cutout(
     } else {
         cutout_flat = hdu.read_region(&mut fptr, &[&rrange, &crange])?;
     }
-    hdu.write_region(&mut fptr_new, &[&(0..imsize), &(0..imsize)], &cutout_flat)?;
+    assert!(cutout_flat.len() == (imsize as usize).pow(2));
+    hdu.write_region(
+        &mut fptr_new,
+        &[&(0..imsize as usize), &(0..imsize as usize)],
+        &cutout_flat,
+    )?;
     Ok(())
 }
 
@@ -152,11 +184,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let temp_reader = File::open(args.sourcetable)?;
         let mut csv_rdr = csv::Reader::from_reader(temp_reader);
         let vals: Vec<Result<csv::StringRecord, csv::Error>> = csv_rdr.records().collect();
+        println!("Found {} sources in catalogue", vals.len());
         vals.par_iter().for_each(|result| {
             let name = &result.as_ref().unwrap()[0];
             let ra: f64 = result.as_ref().unwrap()[1].parse().unwrap();
             let dec: f64 = result.as_ref().unwrap()[2].parse().unwrap();
-            println!("Making cutout for {}", name);
+            //println!("Making cutout for {}", name);
             let _ = make_cutout(
                 &args.fitsimage,
                 &wcs,
