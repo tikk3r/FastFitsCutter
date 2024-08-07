@@ -120,11 +120,15 @@ fn make_cutout(
     let mut fptr_new = FitsFile::create(&outfile)
         .with_custom_primary(&img_desc)
         .open()?;
-    hdu.write_key(&mut fptr_new, "CRVAL1", coord_ref.lon().to_degrees() + cdelt1.abs() / 2.0)?;
+    hdu.write_key(
+        &mut fptr_new,
+        "CRVAL1",
+        coord_ref.lon().to_degrees() + cdelt1.abs() / 2.0,
+    )?;
     hdu.write_key(&mut fptr_new, "CRVAL2", coord_ref.lat().to_degrees())?;
 
-    hdu.write_key(&mut fptr_new, "CRPIX1", (imsize as f64/2.0).ceil() as u64)?;
-    hdu.write_key(&mut fptr_new, "CRPIX2", (imsize as f64/2.0).ceil() as u64)?;
+    hdu.write_key(&mut fptr_new, "CRPIX1", (imsize as f64 / 2.0).ceil() as u64)?;
+    hdu.write_key(&mut fptr_new, "CRPIX2", (imsize as f64 / 2.0).ceil() as u64)?;
 
     hdu.write_key(&mut fptr_new, "CDELT1", cdelt1)?;
     hdu.write_key(&mut fptr_new, "CDELT2", cdelt2)?;
@@ -200,13 +204,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
         });
     } else {
+        let fname = if args.outfile.ends_with(".fits") {
+            args.outfile
+        } else {
+            format!("{}.fits", args.outfile)
+        };
         make_cutout(
             &args.fitsimage,
             &wcs,
             &args.ra,
             &args.dec,
             &args.size,
-            format!("{}.fits", args.outfile),
+            format!("{}", fname),
         )?;
     }
 
