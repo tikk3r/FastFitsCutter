@@ -3,6 +3,7 @@ use fitsio::hdu::FitsHdu;
 use fitsio::headers::{ReadsKey, WritesKey};
 use fitsio::images::{ImageDescription, ImageType};
 use fitsio::FitsFile;
+use fitsrs::hdu::header::extension::image::Image;
 use fitsrs::hdu::header::Header;
 use rayon::prelude::*;
 use wcs::{ImgXY, LonLat, WCS};
@@ -61,6 +62,11 @@ fn make_cutout(
     size: &f64,
     outfile: String,
 ) -> Result<(), Box<dyn std::error::Error>> {
+
+    let f = File::open(fitsimage).unwrap();
+    let mut reader = BufReader::new(f);
+    let header: Header<Image> = Header::parse_only_header(&mut reader)?;
+    let cards = &header.get_header_cards();
     let mut fptr = FitsFile::open(fitsimage)?;
     let hdu = fptr.primary_hdu().unwrap();
 
@@ -120,6 +126,7 @@ fn make_cutout(
     let mut fptr_new = FitsFile::create(&outfile)
         .with_custom_primary(&img_desc)
         .open()?;
+
     hdu.write_key(
         &mut fptr_new,
         "CRVAL1",
@@ -174,6 +181,28 @@ fn make_cutout(
         &[&(0..imsize as usize), &(0..imsize as usize)],
         &cutout_flat,
     )?;
+    drop(fptr_new);
+
+    let mut fptr_new = FitsFile::edit(&outfile).unwrap();
+
+    let f = File::open(outfile).unwrap();
+    let mut reader_out = BufReader::new(f);
+    let header_out: Header<Image> = Header::parse_only_header(&mut reader_out)?;
+    let cards_out = &header_out.get_header_cards();
+
+    for (k, v) in cards.into_iter() {
+        let key = String::from_utf8_lossy(k);
+        if cards_out.contains_key(k) {
+            continue;
+        }
+        if v.clone().check_for_integer().unwrap_or(0) > 0 {
+            copy_key_if_exists::<i64>(&key, &hdu, &mut fptr, &mut fptr_new)?;
+        }else if v.clone().check_for_float().unwrap_or(0.0) > 0.0 {
+            copy_key_if_exists::<f64>(&key, &hdu, &mut fptr, &mut fptr_new)?;
+        }else if v.clone().check_for_string().unwrap_or("".to_string()) == "" {
+            copy_key_if_exists::<String>(&key, &hdu, &mut fptr, &mut fptr_new)?;
+        }
+    }
     Ok(())
 }
 
@@ -181,8 +210,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
     let f = File::open(&args.fitsimage).unwrap();
     let mut reader = BufReader::new(f);
-    let header = Header::parse_header(&mut reader)?;
-    let wcs = WCS::new(&header).unwrap();
+    let header: Header<fitsrs::hdu::header::extension::image::Image> = Header::parse_only_header(&mut reader)?;
+    let wcs = WCS::from_fits_header(&header).unwrap();
 
     if args.sourcetable.len() > 0 {
         let temp_reader = File::open(args.sourcetable)?;
