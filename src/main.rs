@@ -1,4 +1,4 @@
-use clap::Parser;
+use clap::{ArgAction, Parser};
 use fitsio::hdu::FitsHdu;
 use fitsio::headers::{ReadsKey, WritesKey};
 use fitsio::images::{ImageDescription, ImageType};
@@ -39,6 +39,9 @@ struct Args {
     /// ascension and declination.
     #[arg(long, default_value = "")]
     sourcetable: String,
+    /// Parallelise cutouts with Rayon (experimental and sometimes unstable).
+    #[arg(long, action=ArgAction::SetTrue)]
+    parallel: bool,
 }
 
 fn copy_key_if_exists<T: Default + PartialEq + ReadsKey + WritesKey>(
@@ -62,7 +65,6 @@ fn make_cutout(
     size: &f64,
     outfile: String,
 ) -> Result<(), Box<dyn std::error::Error>> {
-
     let f = File::open(fitsimage).unwrap();
     let mut reader = BufReader::new(f);
     let header: Header<Image> = Header::parse_only_header(&mut reader)?;
@@ -197,9 +199,9 @@ fn make_cutout(
         }
         if v.clone().check_for_integer().unwrap_or(0) > 0 {
             copy_key_if_exists::<i64>(&key, &hdu, &mut fptr, &mut fptr_new)?;
-        }else if v.clone().check_for_float().unwrap_or(0.0) > 0.0 {
+        } else if v.clone().check_for_float().unwrap_or(0.0) > 0.0 {
             copy_key_if_exists::<f64>(&key, &hdu, &mut fptr, &mut fptr_new)?;
-        }else if v.clone().check_for_string().unwrap_or("".to_string()) == "" {
+        } else if v.clone().check_for_string().unwrap_or("".to_string()) == "" {
             copy_key_if_exists::<String>(&key, &hdu, &mut fptr, &mut fptr_new)?;
         }
     }
@@ -210,7 +212,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
     let f = File::open(&args.fitsimage).unwrap();
     let mut reader = BufReader::new(f);
-    let header: Header<fitsrs::hdu::header::extension::image::Image> = Header::parse_only_header(&mut reader)?;
+    let header: Header<fitsrs::hdu::header::extension::image::Image> =
+        Header::parse_only_header(&mut reader)?;
     let wcs = WCS::from_fits_header(&header).unwrap();
 
     if args.sourcetable.len() > 0 {
@@ -218,20 +221,37 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         let mut csv_rdr = csv::Reader::from_reader(temp_reader);
         let vals: Vec<Result<csv::StringRecord, csv::Error>> = csv_rdr.records().collect();
         println!("Found {} sources in catalogue", vals.len());
-        vals.par_iter().for_each(|result| {
-            let name = &result.as_ref().unwrap()[0];
-            let ra: f64 = result.as_ref().unwrap()[1].parse().unwrap();
-            let dec: f64 = result.as_ref().unwrap()[2].parse().unwrap();
-            //println!("Making cutout for {}", name);
-            let _ = make_cutout(
-                &args.fitsimage,
-                &wcs,
-                &ra,
-                &dec,
-                &args.size,
-                format!("{}.fits", name),
-            );
-        });
+        if args.parallel {
+            vals.par_iter().for_each(|result| {
+                let name = &result.as_ref().unwrap()[0];
+                let ra: f64 = result.as_ref().unwrap()[1].parse().unwrap();
+                let dec: f64 = result.as_ref().unwrap()[2].parse().unwrap();
+                //println!("Making cutout for {}", name);
+                let _ = make_cutout(
+                    &args.fitsimage,
+                    &wcs,
+                    &ra,
+                    &dec,
+                    &args.size,
+                    format!("{}.fits", name),
+                );
+            });
+        } else if !args.parallel {
+            vals.iter().for_each(|result| {
+                let name = &result.as_ref().unwrap()[0];
+                let ra: f64 = result.as_ref().unwrap()[1].parse().unwrap();
+                let dec: f64 = result.as_ref().unwrap()[2].parse().unwrap();
+                //println!("Making cutout for {}", name);
+                let _ = make_cutout(
+                    &args.fitsimage,
+                    &wcs,
+                    &ra,
+                    &dec,
+                    &args.size,
+                    format!("{}.fits", name),
+                );
+            });
+        }
     } else {
         let fname = if args.outfile.ends_with(".fits") {
             args.outfile
