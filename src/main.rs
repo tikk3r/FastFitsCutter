@@ -237,7 +237,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 );
             });
         } else if !args.parallel {
-            vals.par_iter().for_each(|result| {
+            vals.iter().for_each(|result| {
                 let name = &result.as_ref().unwrap()[0];
                 let ra: f64 = result.as_ref().unwrap()[1].parse().unwrap();
                 let dec: f64 = result.as_ref().unwrap()[2].parse().unwrap();
