@@ -1,4 +1,4 @@
-use clap::Parser;
+use clap::{ArgAction,Parser};
 use fitsio::hdu::FitsHdu;
 use fitsio::headers::{ReadsKey, WritesKey};
 use fitsio::images::{ImageDescription, ImageType};
@@ -40,7 +40,7 @@ struct Args {
     #[arg(long, default_value = "")]
     sourcetable: String,
     /// Parallelise cutouts with Rayon (experimental and sometimes unstable).
-    #[arg(long, default_value = "")]
+    #[arg(long, action=ArgAction::SetTrue)]
     parallel: bool,
 }
 
