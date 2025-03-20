@@ -13,7 +13,7 @@ fitsio-sys = "0.5.2"
 fitsrs = "0.2.11"
 ndarray = "0.15.6"
 rayon = "1.10.0"
-wcs = { git = "https://github.com/cds-astro/wcs-rs"}
+wcs = { version="0.3.1", git = "https://github.com/cds-astro/wcs-rs"}
 
 [dev-dependencies]
 assert_cmd = "2.0.14"
