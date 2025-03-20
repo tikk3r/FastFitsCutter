@@ -162,6 +162,7 @@ fn make_cutout(
     }
 
     copy_key_if_exists::<String>("RADESYS", &hdu, &mut fptr, &mut fptr_new)?;
+    copy_key_if_exists::<String>("BUNIT", &hdu, &mut fptr, &mut fptr_new)?;
     copy_key_if_exists::<f64>("LONPOLE", &hdu, &mut fptr, &mut fptr_new)?;
     copy_key_if_exists::<f64>("LATPOLE", &hdu, &mut fptr, &mut fptr_new)?;
 
